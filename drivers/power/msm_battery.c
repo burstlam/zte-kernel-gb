@@ -67,6 +67,7 @@ when         who        what, where, why                         comment tag
 #include <linux/power_supply.h>
 #include <linux/sched.h>
 #include <linux/signal.h>
+#include <linux/time.h>
 #include <linux/uaccess.h>
 #include <linux/wait.h>
 #include <linux/workqueue.h>
@@ -479,13 +480,13 @@ static int msm_batt_power_get_property(struct power_supply *psy,
         val->intval = msm_batt_info.batt_technology;
         break;
     case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
-        val->intval = msm_batt_info.voltage_max_design;
+        val->intval = msm_batt_info.voltage_max_design*1000;
         break;
     case POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN:
-        val->intval = msm_batt_info.voltage_min_design;
+        val->intval = msm_batt_info.voltage_min_design*1000;
         break;
     case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-        val->intval = msm_batt_info.battery_voltage;
+        val->intval = msm_batt_info.battery_voltage*1000;
         break;
     case POWER_SUPPLY_PROP_CAPACITY:
 #ifdef	ZTE_PLATFORM_NOT_SHUTDOWN_WHILE_PERCENTAGE_0
@@ -669,7 +670,7 @@ static int msm_batt_get_batt_chg_status_v1(void)
             rep_batt_chg.battery_voltage=gaugereadvalue&0xffff;
 #endif
         }
-	 else	//chenchongbao.20110713_1  如果读电量计出错，则采用上次电量计数据
+	 else	//chenchongbao.20110713_1
 	{
 		gauge_voltage = gauge_old_voltage;
 		rep_batt_chg.battery_voltage=gauge_voltage;
@@ -689,7 +690,7 @@ static int msm_batt_get_batt_chg_status_v1(void)
 				rep_batt_chg.battery_capacity=0;
 			}
 			//else use arm9 capacity data!
-			else	//chenchongbao.20110713_1	如果没有如此处理，将导致电量由0跳变到ARM9 的容量值比如3% !!!
+			else	//chenchongbao.20110713_1
 			{
 				if(rep_batt_chg.battery_capacity!=0){
 					rep_batt_chg.battery_capacity=1;	
@@ -704,7 +705,7 @@ static int msm_batt_get_batt_chg_status_v1(void)
             rep_batt_chg.battery_capacity=gaugereadvalue&0xff;
 #endif
         }
-	else	//chenchongbao.20110713_1  如果读电量计出错，则采用上次电量计数据
+	else	//chenchongbao.20110713_1
 	{
 		gauge_capacity = gauge_old_capacity;
 		rep_batt_chg.battery_capacity=gauge_capacity;
@@ -716,7 +717,7 @@ static int msm_batt_get_batt_chg_status_v1(void)
 #ifdef ZTE_GAUGE_OPTIMIZE_FEATURE
            	gauge_status++; 
             //gaugereadvalue |= 0xFFFF0000;	//chenchongbao.2011.6.7
-            if(gaugereadvalue & 0x8000)		//chenchongbao.20110713_1 解决负值问题
+            if(gaugereadvalue & 0x8000)		//chenchongbao.20110713_1
 				gaugereadvalue |= 0xFFFF0000;
 		gauge_current=(int)gaugereadvalue;
 #endif
@@ -773,10 +774,10 @@ static int msm_batt_get_batt_chg_status_v1(void)
 #endif	//ZTE_GAUGE_OPTIMIZE_FEATURE
 
 
-//chenchongbao.2011.5.25 : 用于处理连接USB 时手机大电流造成的掉电关机反复重启问题!
+//chenchongbao.2011.5.25 :
 
 if(  ( (rep_batt_chg.charger_type == CHARGER_TYPE_USB_PC) ||(rep_batt_chg.charger_type == CHARGER_TYPE_USB_WALL) ||(rep_batt_chg.charger_type == CHARGER_TYPE_USB_CARKIT))
-		//(rep_batt_chg.charger_type != CHARGER_TYPE_NONE)  V9  默认为NONE! 为了避免出现invalid 类型, 因此采用上述两个条件!
+		//(rep_batt_chg.charger_type != CHARGER_TYPE_NONE)  V9
 	&& (rep_batt_chg.battery_capacity == 0) && (rep_batt_chg.battery_voltage < 3400) )
 {
 	low_power_cnt ++;
@@ -1451,6 +1452,8 @@ static int __devinit msm_batt_probe(struct platform_device *pdev)
         return rc;
     }
     msm_batt_info.msm_psy_batt = &msm_psy_batt;
+    last_resume_secs = 0;
+    in_suspend = 0;
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
     msm_batt_info.early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
@@ -1763,6 +1766,10 @@ struct __attribute__((packed)) smem_batt_chg_t
 
 static struct smem_batt_chg_t rep_batt_chg;
 
+#if defined(CONFIG_MACH_BLADE)
+static long last_resume_secs;
+#endif
+
 struct msm_battery_info
 {
     u32 voltage_max_design;
@@ -1992,13 +1999,13 @@ static int msm_batt_power_get_property(struct power_supply *psy,
         val->intval = msm_batt_info.batt_technology;
         break;
     case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
-        val->intval = msm_batt_info.voltage_max_design;
+        val->intval = msm_batt_info.voltage_max_design*1000;
         break;
     case POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN:
-        val->intval = msm_batt_info.voltage_min_design;
+        val->intval = msm_batt_info.voltage_min_design*1000;
         break;
     case POWER_SUPPLY_PROP_VOLTAGE_NOW:
-        val->intval = msm_batt_info.battery_voltage;
+        val->intval = msm_batt_info.battery_voltage*1000;
         break;
     case POWER_SUPPLY_PROP_CAPACITY:
 #ifdef	ZTE_PLATFORM_NOT_SHUTDOWN_WHILE_PERCENTAGE_0
@@ -2046,6 +2053,7 @@ module_param_named(usb_chg_enable, usb_charger_enable, int, S_IRUGO | S_IWUSR | 
 #define CHG_RPC_VERS		0x00010003
 
 #define BATTERY_ENABLE_DISABLE_USB_CHG_PROC 		6
+#define BATTERY_MAX_TEMP 	68
 
 
 
@@ -2182,7 +2190,7 @@ static int msm_batt_get_batt_chg_status_v1(void)
             rep_batt_chg.battery_voltage=gaugereadvalue&0xffff;
 #endif
         }
-	 else	//chenchongbao.20110713_1  如果读电量计出错，则采用上次电量计数据
+	 else	//chenchongbao.20110713_1  脠莽鹿没露脕碌莽脕驴艗脝鲁枚沤铆拢卢脭貌虏脡脫脙脡脧沤脦碌莽脕驴艗脝脢媒鸥脻
 	{
 		gauge_voltage = gauge_old_voltage;
 		rep_batt_chg.battery_voltage=gauge_voltage;
@@ -2202,7 +2210,7 @@ static int msm_batt_get_batt_chg_status_v1(void)
 				rep_batt_chg.battery_capacity=0;
 			}
 			//else use arm9 capacity data!
-			else	//chenchongbao.20110713_1	如果没有如此处理，将导致电量由0跳变到ARM9 的容量值比如3% !!!
+			else	//chenchongbao.20110713_1	脠莽鹿没脙禄脫脨脠莽沤脣沤艩脌铆拢卢艙芦碌艗脰脗碌莽脕驴脫脡0脤酶卤盲碌艙ARM9 碌脛脠脻脕驴脰碌卤脠脠莽3% !!!
 			{
 				if(rep_batt_chg.battery_capacity!=0){
 					rep_batt_chg.battery_capacity=1;	
@@ -2217,7 +2225,7 @@ static int msm_batt_get_batt_chg_status_v1(void)
             rep_batt_chg.battery_capacity=gaugereadvalue&0xff;
 #endif
         }
-	else	//chenchongbao.20110713_1  如果读电量计出错，则采用上次电量计数据
+	else	//chenchongbao.20110713_1  脠莽鹿没露脕碌莽脕驴艗脝鲁枚沤铆拢卢脭貌虏脡脫脙脡脧沤脦碌莽脕驴艗脝脢媒鸥脻
 	{
 		gauge_capacity = gauge_old_capacity;
 		rep_batt_chg.battery_capacity=gauge_capacity;
@@ -2229,7 +2237,7 @@ static int msm_batt_get_batt_chg_status_v1(void)
 #ifdef ZTE_GAUGE_OPTIMIZE_FEATURE
            	gauge_status++; 
             //gaugereadvalue |= 0xFFFF0000;	//chenchongbao.2011.6.7
-            if(gaugereadvalue & 0x8000)		//chenchongbao.20110713_1 解决负值问题
+            if(gaugereadvalue & 0x8000)		//chenchongbao.20110713_1 艙芒鸥枚啪潞脰碌脦脢脤芒
 				gaugereadvalue |= 0xFFFF0000;
 		gauge_current=(int)gaugereadvalue;
 #endif
@@ -2286,10 +2294,10 @@ static int msm_batt_get_batt_chg_status_v1(void)
 #endif	//ZTE_GAUGE_OPTIMIZE_FEATURE
 
 
-//chenchongbao.2011.5.25 : 用于处理连接USB 时手机大电流造成的掉电关机反复重启问题!
+//chenchongbao.2011.5.25 : 脫脙脫脷沤艩脌铆脕卢艙脫USB 脢卤脢脰禄煤沤贸碌莽脕梅脭矛鲁脡碌脛碌么碌莽鹿脴禄煤路沤啪沤脰脴脝么脦脢脤芒!
 
 if(  ( (rep_batt_chg.charger_type == CHARGER_TYPE_USB_PC) ||(rep_batt_chg.charger_type == CHARGER_TYPE_USB_WALL) )
-		//(rep_batt_chg.charger_type != CHARGER_TYPE_NONE)  V9  默认为NONE! 为了避免出现invalid 类型, 因此采用上述两个条件!
+		//(rep_batt_chg.charger_type != CHARGER_TYPE_NONE)  V9  脛卢脠脧脦陋NONE! 脦陋脕脣卤脺脙芒鲁枚脧脰invalid 脌脿脨脥, 脪貌沤脣虏脡脫脙脡脧脢枚脕艙啪枚脤玫艗镁!
 	&& (rep_batt_chg.battery_capacity == 0) && (rep_batt_chg.battery_voltage < 3400) )
 {
 	low_power_cnt ++;
@@ -2552,7 +2560,20 @@ void msm_batt_update_psy_status_v1(void)
     msm_batt_info.battery_level = rep_batt_chg.battery_level;
     msm_batt_info.battery_voltage = rep_batt_chg.battery_voltage;
     msm_batt_info.battery_capacity = rep_batt_chg.battery_capacity;
-    msm_batt_info.battery_temp = rep_batt_chg.battery_temp;
+    /* Battery temperature measurements on blade are unreliable for some time after resume. */
+    /* Ignore high battery temp if battery status is still good. 0=good 1=bad temp. */
+    /* Android shuts down if any one temperature reading is above 68 C (see BatteryService.java). */
+    /* Blade temperature readings are especially high after using GPS. */
+#if defined(CONFIG_MACH_BLADE)
+    if(!rep_batt_chg.battery_status && rep_batt_chg.battery_temp > BATTERY_MAX_TEMP)
+    {
+        printk("%s(): ignoring battery temperature reading (%u) - status is still good. Time since resume is %li seconds. status=%u.\n", __func__, rep_batt_chg.battery_temp,current_kernel_time().tv_sec - last_resume_secs, rep_batt_chg.battery_status);
+        msm_batt_info.battery_temp = BATTERY_MAX_TEMP;
+    }
+    else
+#endif
+        msm_batt_info.battery_temp = rep_batt_chg.battery_temp;
+
     msm_batt_info.chg_fulled = rep_batt_chg.chg_fulled;
     msm_batt_info.charging = rep_batt_chg.charging;
 
@@ -2616,6 +2637,9 @@ static int msm_batt_handle_suspend(void)
 
 static int msm_batt_handle_resume(void)
 {
+#if defined(CONFIG_MACH_BLADE)
+    last_resume_secs = current_kernel_time().tv_sec;
+#endif
     msm_batt_update_psy_status_v1();
     return 0;
 }
